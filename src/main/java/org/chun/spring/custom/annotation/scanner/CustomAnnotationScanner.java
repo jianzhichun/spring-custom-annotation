@@ -9,6 +9,7 @@ import org.chun.spring.custom.annotation.hook.FactoryBeanHook;
 import org.springframework.beans.MutablePropertyValues;
 import org.springframework.beans.factory.annotation.AnnotatedBeanDefinition;
 import org.springframework.beans.factory.config.BeanDefinitionHolder;
+import org.springframework.beans.factory.support.AbstractBeanDefinition;
 import org.springframework.beans.factory.support.BeanDefinitionRegistry;
 import org.springframework.beans.factory.support.GenericBeanDefinition;
 import org.springframework.context.annotation.ClassPathBeanDefinitionScanner;
@@ -69,41 +70,35 @@ public class CustomAnnotationScanner extends ClassPathBeanDefinitionScanner {
 	}
 
 	public CustomAnnotationScanner(BeanDefinitionRegistry registry) {
-		super(registry);
+		super(registry, false);
 	}
 
-	@Override
 	public void registerDefaultFilters() {
-		addIncludeFilter(new AnnotationTypeFilter(declarationAnnotation));
+		this.addIncludeFilter(new AnnotationTypeFilter(declarationAnnotation));
 	}
 
 	@Override
 	public Set<BeanDefinitionHolder> doScan(String... basePackages) {
 		Set<BeanDefinitionHolder> beanDefinitions = super.doScan(basePackages);
 		for (BeanDefinitionHolder holder : beanDefinitions) {
-			if (null != beanDefinitionPostProcessor) {
-				try {
-					beanDefinitionPostProcessor.newInstance().postProcessBeanDefinition(holder,
-							customAnnotationScanAttr);
-					continue;
-				} catch (InstantiationException | IllegalAccessException e) {
-					throw new RuntimeException("BeanDefinitionPostProcessor throw error!", e);
-				}
+			BeanDefinitionPostProcessor bdpp = newInstance(beanDefinitionPostProcessor);
+			if (null != bdpp) {
+				bdpp.postProcessBeanDefinition(holder, customAnnotationScanAttr);
+				continue;
 			}
 			GenericBeanDefinition definition = (GenericBeanDefinition) holder.getBeanDefinition();
 			MutablePropertyValues propertyValues = definition.getPropertyValues();
-			propertyValues.add("innerClass", definition.getBeanClass());
+			propertyValues.add("innerClassName", definition.getBeanClassName());
 			propertyValues.add("customAnnotation", customAnnotation);
-			
+
 			Assert.notNull(beanPropertyValuesInitHook, "BeanPropertyValuesInitHook is null!");
-			try {
-				beanPropertyValuesInitHook.newInstance().propertyValuesInit(propertyValues, definition.getBeanClass(), declarationAnnotation);
-			} catch (InstantiationException | IllegalAccessException e) {
-				throw new RuntimeException("BeanDefinitionPostProcessor throw error!", e);
-			}
-			
+			BeanPropertyValuesInitHook bpvih = newInstance(beanPropertyValuesInitHook);
+			bpvih.propertyValuesInit(propertyValues, getClazzByName(definition.getBeanClassName()),
+					declarationAnnotation);
+
 			Assert.notNull(factoryBeanHook, "FactoryBeanHook is null!");
 			definition.setBeanClass(factoryBeanHook);
+			definition.setAutowireMode(AbstractBeanDefinition.AUTOWIRE_BY_TYPE);
 		}
 		return beanDefinitions;
 	}
@@ -111,6 +106,26 @@ public class CustomAnnotationScanner extends ClassPathBeanDefinitionScanner {
 	@Override
 	public boolean isCandidateComponent(AnnotatedBeanDefinition beanDefinition) {
 		return beanDefinition.getMetadata().isIndependent();
+	}
+
+	@SuppressWarnings("unchecked")
+	private static <T> T newInstance(Class<T> clazz) {
+		try {
+			return null == clazz ? null : (T) Class.forName(clazz.getName()).newInstance();
+		} catch (InstantiationException | IllegalAccessException | ClassNotFoundException e) {
+			e.printStackTrace();
+		}
+		return null;
+	}
+	
+	@SuppressWarnings("unchecked")
+	private static <T> Class<T> getClazzByName(String className) {
+		try {
+			return (Class<T>) Class.forName(className);
+		} catch (ClassNotFoundException e) {
+			e.printStackTrace();
+		}
+		return null;
 	}
 
 }

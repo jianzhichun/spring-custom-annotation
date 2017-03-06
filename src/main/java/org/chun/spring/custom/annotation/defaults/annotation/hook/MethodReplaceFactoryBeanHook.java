@@ -1,9 +1,11 @@
 package org.chun.spring.custom.annotation.defaults.annotation.hook;
 
 import java.lang.reflect.Method;
-import java.util.Map;
+import java.lang.reflect.Modifier;
 
+import org.chun.spring.custom.annotation.defaults.annotation.Replace;
 import org.chun.spring.custom.annotation.defaults.annotation.ReplaceMethodInvoker;
+import org.chun.spring.custom.annotation.helper.Defaults;
 import org.chun.spring.custom.annotation.hook.FactoryBeanHook;
 import org.springframework.cglib.core.SpringNamingPolicy;
 import org.springframework.cglib.proxy.Enhancer;
@@ -14,16 +16,12 @@ import org.springframework.cglib.proxy.Proxy;
 
 public class MethodReplaceFactoryBeanHook<T> extends FactoryBeanHook<T> {
 
-	private boolean isSingleton;
-	private Map<String, ReplaceMethodInvoker> methodReplaceMap;
+	private boolean singleton;
 	private ReplaceMethodInvoker allMethodInvoker;
 	private MethodReplaceProxy methodReplaceProxy = new MethodReplaceProxy();
 	
-	public void setSingleton(boolean isSingleton) {
-		this.isSingleton = isSingleton;
-	}
-	public void setMethodReplaceMap(Map<String, ReplaceMethodInvoker> methodReplaceMap) {
-		this.methodReplaceMap = methodReplaceMap;
+	public void setSingleton(boolean singleton) {
+		this.singleton = singleton;
 	}
 	
 	public void setAllMethodInvoker(ReplaceMethodInvoker allMethodInvoker) {
@@ -32,6 +30,7 @@ public class MethodReplaceFactoryBeanHook<T> extends FactoryBeanHook<T> {
 	@SuppressWarnings("unchecked")
 	@Override
 	public T getObject() throws Exception {
+		Class<T> innerClass = getObjectType();
 		if (innerClass.isInterface()) {
 			return (T) methodReplaceProxy.newInterfaceInstance(innerClass);
 		} else {
@@ -42,19 +41,23 @@ public class MethodReplaceFactoryBeanHook<T> extends FactoryBeanHook<T> {
 			return (T) enhancer.create();
 		}
 	}
-
+	
+	@SuppressWarnings("unchecked")
 	@Override
-	public Class<?> getObjectType() {
-		return innerClass;
+	public Class<T> getObjectType() {
+		try {
+			return (Class<T>) Class.forName(innerClassName);
+		} catch (ClassNotFoundException e) {
+			return null;
+		}
 	}
 
 	@Override
 	public boolean isSingleton() {
-		return isSingleton;
+		return singleton;
 	}
 
 	class MethodReplaceProxy {
-
 
 		@SuppressWarnings({ "unchecked", "rawtypes" })
 		T newInterfaceInstance(Class<T> innerClass) {
@@ -81,15 +84,19 @@ public class MethodReplaceFactoryBeanHook<T> extends FactoryBeanHook<T> {
 
 		protected Object invocation(Object proxy, Method method, Object[] arguments, MethodProxy methodProxy) throws Throwable {
 			if(method.isAnnotationPresent(customAnnotation)){
-				ReplaceMethodInvoker perMethodInvoker = methodReplaceMap.get(method.getName());
-				if(null != perMethodInvoker){
-					return perMethodInvoker.invoke(proxy, method, arguments, methodProxy);	
+				if(Replace.class.equals(customAnnotation)){
+					Replace replace = method.getAnnotation(Replace.class);
+					if(!replace.value().equals(ReplaceMethodInvoker.class)){
+						return replace.value().newInstance().invocation(proxy, method, arguments, methodProxy);
+					}
 				}
 				if(null != allMethodInvoker){
-					return allMethodInvoker.invoke(proxy, method, arguments, methodProxy);
+					return allMethodInvoker.invocation(proxy, method, arguments, methodProxy);
 				}
 			}
-			return allMethodInvoker.formerInvoke(proxy, method, arguments, methodProxy);
+			if (Modifier.isAbstract(method.getModifiers()))
+				return method.getReturnType().isPrimitive() ? Defaults.defaultValue(method.getReturnType()) : null;
+			return null != methodProxy ? methodProxy.invokeSuper(proxy, arguments) : method.invoke(proxy, arguments);
 		}
 	}
 

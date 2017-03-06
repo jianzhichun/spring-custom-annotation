@@ -14,7 +14,7 @@ import org.springframework.core.annotation.AliasFor;
 public @interface MethodReplace {
 	
 	@AliasFor("replaceMethodInvokerRef")
-	String[] value();
+	String value() default "";
 	
 	@AliasFor("value")
 	String replaceMethodInvokerRef() default "";

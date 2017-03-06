@@ -25,7 +25,7 @@ import org.springframework.core.annotation.AliasFor;
 public @interface CustomAnnotationScan {
 
 	@AliasFor("basePackages")
-	String[] value();
+	String[] value() default {};
 	
 	@AliasFor("value")
 	String[] basePackages() default {};

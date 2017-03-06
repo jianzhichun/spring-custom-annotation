@@ -19,10 +19,9 @@ public class CustomAnnotationScannerRegistrar implements ImportBeanDefinitionReg
 
 	public void registerBeanDefinitions(AnnotationMetadata importingClassMetadata, BeanDefinitionRegistry registry) {
 		
-		CustomAnnotationScanner scanner = new CustomAnnotationScanner(registry);
-		
 		AnnotationAttributes annoAttrs = AnnotationAttributes
 				.fromMap(importingClassMetadata.getAnnotationAttributes(CustomAnnotationScan.class.getName()));
+		CustomAnnotationScanner scanner = new CustomAnnotationScanner(registry);
 		
 		scanner.setCustomAnnotationScanAttr(annoAttrs);
 		
@@ -31,6 +30,7 @@ public class CustomAnnotationScannerRegistrar implements ImportBeanDefinitionReg
 		}
 
 		String[] basePackages = annoAttrs.getStringArray("basePackages");
+		scanner.registerDefaultFilters();
 		scanner.scan(basePackages);
 	}
 
