@@ -13,7 +13,7 @@ public abstract class ReplaceMethodInvoker {
 	private Object[] arguments;
 	private MethodProxy methodProxy;
 	
-	protected Object formerInvoke() throws Throwable {
+	public Object formerInvoke() throws Throwable {
 		if (Modifier.isAbstract(method.getModifiers()))
 			return method.getReturnType().isPrimitive() ? Defaults.defaultValue(method.getReturnType()) : null;
 		return null != methodProxy ? methodProxy.invokeSuper(proxy, arguments) : method.invoke(proxy, arguments);
